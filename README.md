@@ -141,7 +141,7 @@ REALITY_TARGET=127.0.0.1:9443
 REALITY_SERVER_NAME=your-selected-hostname.katossh.dpdns.org
 ```
 
-Caddy is built with the Cloudflare DNS provider module and binds only to `127.0.0.1:9443`. It serves `caddy/site/index.html` and requests a trusted certificate using ACME DNS-01. The Cloudflare API token must have Zone Read and DNS Edit on the `katossh.dpdns.org` zone.
+Caddy is built with the Cloudflare DNS provider module and binds only to `127.0.0.1:9443`. Its container drops all Linux capabilities except `NET_BIND_SERVICE`, which the official Caddy binary's file-capability metadata requires in order to execute; this does not expose privileged ports because the configured listener is 9443. It serves `caddy/site/index.html` and requests a trusted certificate using ACME DNS-01. The Cloudflare API token must have Zone Read and DNS Edit on the `katossh.dpdns.org` zone.
 
 DNS-01 writes a temporary `_acme-challenge` TXT record through the Cloudflare API; it does not require public ports 80 or 443 to be opened. Caddy does not bind public 80/443 and therefore does not take over an existing web server or the existing `fkts` listeners. See the [Caddy DNS challenge docs](https://caddyserver.com/docs/automatic-https#dns-challenge) and [Cloudflare provider requirements](https://github.com/caddy-dns/cloudflare).
 

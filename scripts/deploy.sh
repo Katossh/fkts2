@@ -20,11 +20,9 @@ if [[ -z "$REALITY_SERVER_NAME" || "$REALITY_SERVER_NAME" == "REPLACE_ME" ]]; th
   exit 1
 fi
 
-echo "Validating DNS resolver configuration..."
+echo "Validating DNSCrypt-proxy configuration..."
 docker compose run --rm --no-deps --entrypoint dnscrypt-proxy dnscrypt-proxy \
   -config /config/dnscrypt-proxy.toml -check
-docker compose run --rm --no-deps --entrypoint /usr/sbin/unbound-checkconf unbound \
-  /etc/unbound/unbound.conf
 
 echo "Building and validating the Caddy self-steal fallback..."
 docker compose build caddy
@@ -35,6 +33,8 @@ echo "Preparing Unbound's persistent DNSSEC trust-anchor volume..."
 # Creating the Unbound container first lets Docker seed the empty named volume
 # with the image's root.hints/root.key files before the ownership helper runs.
 docker compose create --no-deps unbound
+docker compose run --rm --no-deps --entrypoint /usr/sbin/unbound-checkconf unbound \
+  /etc/unbound/unbound.conf
 docker compose --profile init run --rm --no-deps unbound-data-permissions
 
 echo "Starting the local DNS chain (Unbound -> dnscrypt-proxy -> Cloudflare DoH)..."

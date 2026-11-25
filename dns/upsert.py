@@ -99,30 +99,46 @@ def main() -> int:
         record_id = record.get("id")
         if not record_id:
             raise RuntimeError("Cloudflare returned an A record without an ID")
-        if (
+
+        managed_by_fkts2 = (record.get("comment") or "").startswith("Managed by fkts2")
+        already_matches = (
             record.get("content") == payload["content"]
             and record.get("proxied") is False
             and record.get("ttl") == 1
-        ):
-            print(f"No change: {record_name} already points to {entry_ip} (DNS-only, automatic TTL).")
+        )
+
+        if already_matches and managed_by_fkts2:
+            print(f"No change: {record_name} already points to {entry_ip} and is managed by fkts2.")
             return 0
 
-        managed_by_fkts2 = (record.get("comment") or "").startswith("Managed by fkts2")
-        if not managed_by_fkts2 and not allow_existing_update:
-            raise RuntimeError(
-                f"{record_name} already has an A record pointing to {record.get('content')} "
-                f"(proxied={record.get('proxied')}). Refusing to overwrite an existing service. "
-                "Inspect the record first; set CF_ALLOW_EXISTING_RECORD_UPDATE=true only if you "
-                "intentionally want fkts2 to repurpose it."
-            )
+        # If the record already has the desired IP, DNS-only mode and automatic TTL,
+        # adopting it adds only the fkts2 ownership comment; it does not change routing.
+        # Do not silently take over records carrying another application's comment.
+        if already_matches and not managed_by_fkts2 and not (record.get("comment") or "").strip():
+            result = api_request(
+                "PUT",
+                zone_path + "/" + urllib.parse.quote(record_id, safe=""),
+                token,
+                payload,
+            )["result"]
+            action = "Adopted"
+        else:
+            if not managed_by_fkts2 and not allow_existing_update:
+                raise RuntimeError(
+                    f"{record_name} already has an unmanaged A record pointing to {record.get('content')} "
+                    f"(proxied={record.get('proxied')}, ttl={record.get('ttl')}, "
+                    f"comment={record.get('comment')!r}). Refusing to overwrite an existing service. "
+                    "Inspect the record first; set CF_ALLOW_EXISTING_RECORD_UPDATE=true only if you "
+                    "intentionally want fkts2 to repurpose it."
+                )
 
-        result = api_request(
-            "PUT",
-            zone_path + "/" + urllib.parse.quote(record_id, safe=""),
-            token,
-            payload,
-        )["result"]
-        action = "Updated"
+            result = api_request(
+                "PUT",
+                zone_path + "/" + urllib.parse.quote(record_id, safe=""),
+                token,
+                payload,
+            )["result"]
+            action = "Updated"
     else:
         result = api_request("POST", zone_path, token, payload)["result"]
         action = "Created"

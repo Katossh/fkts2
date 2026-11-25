@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-./scripts/preflight.sh
+bash ./scripts/preflight.sh
 
 echo "Validating the rendered Xray configuration..."
 docker compose run --rm --no-deps xray run -test -confdir /usr/local/etc/xray

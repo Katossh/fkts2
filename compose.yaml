@@ -64,7 +64,9 @@ services:
       XDG_DATA_HOME: /data
       XDG_CONFIG_HOME: /config
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Mount the directory, not the individual file: editors can atomically replace
+      # Caddyfile on save without leaving the container attached to the old inode.
+      - ./caddy:/etc/caddy:ro
       - ./caddy/site:/srv:ro
       - caddy_data:/data
       - caddy_config:/config

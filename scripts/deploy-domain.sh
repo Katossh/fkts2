@@ -9,7 +9,7 @@ fi
 
 # Prepare the persistent Unbound trust-anchor volume before its non-root service starts.
 docker compose create --no-deps unbound
-docker compose run --rm --no-deps unbound-data-permissions
+docker compose --profile init run --rm --no-deps unbound-data-permissions
 
 # This one-shot API helper depends on the local DNS chain and only manages
 # CF_RECORD_NAME; it never changes other DNS records.

@@ -1,0 +1,31 @@
+# dnscrypt-proxy v2.1.21
+# This instance is a local-only DoH forwarder for Unbound.
+# The static stamp embeds Cloudflare's resolver address, so no plaintext
+# bootstrap DNS or system resolver is needed to discover the upstream.
+
+server_names = ['cloudflare']
+listen_addresses = ['127.0.0.1:5053']
+max_clients = 250
+
+ipv4_servers = true
+ipv6_servers = false
+dnscrypt_servers = false
+doh_servers = true
+odoh_servers = false
+
+# The selected resolver is statically defined below. Do not bootstrap it
+# through the host resolver or a plaintext DNS server.
+bootstrap_resolvers = []
+ignore_system_dns = true
+
+# Use DoH over HTTPS/TCP; do not negotiate HTTP/3/QUIC.
+http3 = false
+force_tcp = false
+
+# Unbound is the single cache and DNSSEC validation point.
+cache = false
+
+# The stamp contains the Cloudflare DoH IP, TLS name and /dns-query path.
+# This is the official Cloudflare resolver stamp from DNSCrypt's resolver list.
+[static.'cloudflare']
+stamp = 'sdns://AgcAAAAAAAAABzEuMC4wLjEAEmRucy5jbG91ZGZsYXJlLmNvbQovZG5zLXF1ZXJ5'

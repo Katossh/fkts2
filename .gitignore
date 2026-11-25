@@ -1,0 +1,6 @@
+.env
+runtime/**
+!runtime/xray/
+!runtime/xray/.gitkeep
+__pycache__/
+*.pyc

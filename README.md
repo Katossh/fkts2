@@ -237,7 +237,7 @@ bash ./scripts/preflight.sh
 bash ./scripts/deploy.sh
 ```
 
-`preflight.sh` checks that both IPs are present on the host, that the kernel can route using `EXIT_IP`, and that Compose accepts the service definition. `deploy.sh` builds and validates Caddy, starts the Unbound/dnscrypt-proxy DNS chain, configures the host's `systemd-resolved` upstream, starts the local fallback, waits until its Cloudflare DNS-01 certificate is ready, runs Xray's own `run -test` against all generated fragments, and only then starts Xray. Run deployment as root because it installs the system DNS drop-in.
+`preflight.sh` checks that both IPs are present on the host, that the kernel can route using `EXIT_IP`, and that Compose accepts the service definition. `deploy.sh` validates the DNS configs, builds and validates Caddy, starts the Unbound/dnscrypt-proxy chain, configures the host's `systemd-resolved` upstream, starts the local fallback, waits until its Cloudflare DNS-01 certificate is ready, explicitly reloads Caddy, validates Xray's generated fragments with Xray's own `run -test`, and recreates only the Xray container so the new DNS module is loaded. It leaves the DNS services running and does not recreate Caddy or any unrelated containers. Run deployment as root because it installs the system DNS drop-in.
 
 The repository stores shell scripts as regular GitHub content files. Invoke them through `bash` as shown above.
 

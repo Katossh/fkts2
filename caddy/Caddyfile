@@ -1,0 +1,21 @@
+{
+    # This service only listens on loopback:9443. Do not install public :80/:443 redirects.
+    auto_https disable_redirects
+}
+
+https://{$REALITY_SERVER_NAME}:9443 {
+    bind 127.0.0.1
+
+    tls {
+        dns cloudflare {env.CF_API_TOKEN}
+        resolvers 1.1.1.1
+    }
+
+    root * /srv
+    file_server
+
+    header {
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+    }
+}

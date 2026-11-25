@@ -302,7 +302,7 @@ The SSH step:
 
 - Detects the active SSH daemon and systemd socket activation where present.
 - Adds the new port to SSH daemon/socket configuration without immediately removing the currently working port.
-- Opens the new TCP port in active UFW or firewalld. On Fedora with enforcing SELinux, it assigns the `ssh_port_t` label. If neither supported firewall is active, it warns that the VPS provider's external firewall/security group must allow the new port.
+- Opens the new TCP port in active UFW or firewalld. On Fedora with enforcing SELinux, it assigns the `ssh_port_t` label. The scripts cannot change your VPS provider's external firewall/security group: allow the new TCP port there as well, before reconnecting. If neither supported local firewall is active, the script also prints a warning.
 - Validates `sshd` configuration, reloads/restarts the relevant unit, and confirms that the new port is listening.
 
 **The old SSH port intentionally remains enabled after migration.** Open a second, independent SSH connection using the new port, for example:

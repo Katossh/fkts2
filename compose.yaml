@@ -16,6 +16,9 @@ services:
       - /tmp:rw,noexec,nosuid,size=16m
     volumes:
       - ./runtime/xray:/usr/local/etc/xray:ro
+    depends_on:
+      caddy:
+        condition: service_started
     healthcheck:
       test:
         - CMD
@@ -28,6 +31,39 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  caddy:
+    build:
+      context: ./caddy
+      args:
+        CADDY_VERSION: ${CADDY_VERSION:-2}
+    image: fkts2-caddy:local
+    container_name: fkts2-caddy
+    network_mode: host
+    restart: unless-stopped
+    user: "0:0"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    environment:
+      CF_API_TOKEN: ${CF_API_TOKEN:-}
+      REALITY_SERVER_NAME: ${REALITY_SERVER_NAME:-}
+      XDG_DATA_HOME: /data
+      XDG_CONFIG_HOME: /config
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/site:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
     logging:
       driver: json-file
       options:
@@ -55,3 +91,8 @@ services:
       CF_ZONE_NAME: ${CF_ZONE_NAME:-katossh.dpdns.org}
       CF_RECORD_NAME: ${CF_RECORD_NAME:-xray.katossh.dpdns.org}
       ENTRY_IP: ${ENTRY_IP:-}
+      CF_ALLOW_EXISTING_RECORD_UPDATE: ${CF_ALLOW_EXISTING_RECORD_UPDATE:-false}
+
+volumes:
+  caddy_data:
+  caddy_config:

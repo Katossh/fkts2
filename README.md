@@ -54,8 +54,8 @@ The preflight still requires both addresses to be assigned locally and verifies 
 ## Isolation from the current `fkts`
 
 - This directory and Compose project are independent of `fkts`.
-- The default inbound port is `8443` so the new Xray process does not immediately collide with a current `:443` listener.
-- The separate `fkts2-caddy` container binds only to `127.0.0.1:9443`; it does not take over the existing Caddy service or public ports 80/443. No existing certificates, UFW rules, or containers from `fkts` are changed.
+- The default inbound port is `443` for standard HTTPS. Xray binds `ENTRY_IP:443`, so that socket must be free before deployment. If another service already owns it, stop/reconfigure that service or explicitly set a different `INBOUND_PORT`.
+- The separate `fkts2-caddy` container binds only to `127.0.0.1:9443`; it does not take over a public web-server listener on ports 80/443. Xray uses the configured `INBOUND_PORT` (443 by default). No existing certificates, UFW rules, or containers from `fkts` are changed.
 - Change `INBOUND_PORT` to `443` only during a deliberate cutover, after checking what currently owns that socket.
 
 ## Modules
@@ -94,7 +94,7 @@ Then edit `.env`:
 - `ENTRY_ADDRESS`: DNS name clients will connect to; default is `xray.katossh.dpdns.org`
 - `REALITY_TARGET`: `127.0.0.1:9443` for the local Caddy fallback
 - `REALITY_SERVER_NAME`: the hostname covered by the Caddy certificate; normally the same hostname as `ENTRY_ADDRESS` and `CF_RECORD_NAME`
-- `INBOUND_PORT`: leave `8443` while staging; use `443` only during cutover
+- `INBOUND_PORT`: defaults to `443` for standard HTTPS. Use another port only if 443 is occupied or you intentionally need a custom listener.
 
 `init.sh` creates a new client UUID and short ID. Do not publish `.env` or `runtime/`.
 

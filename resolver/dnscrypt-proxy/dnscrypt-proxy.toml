@@ -22,6 +22,10 @@ ignore_system_dns = true
 http3 = false
 force_tcp = false
 
+# The upstream IP is pinned in the static stamp. Skip the generic UDP/53
+# connectivity probe; the Docker health check tests the real DoH path.
+netprobe_timeout = 0
+
 # Unbound is the single cache and DNSSEC validation point.
 cache = false
 

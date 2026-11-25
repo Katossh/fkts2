@@ -74,6 +74,8 @@ def main() -> int:
     if entry_ip.version != 4:
         raise ValueError("The current fkts2 Cloudflare module manages an A record; ENTRY_IP must be IPv4")
 
+    allow_existing_update = os.environ.get("CF_ALLOW_EXISTING_RECORD_UPDATE", "false").strip().lower() == "true"
+
     query = urllib.parse.urlencode({"type": "A", "name": record_name, "per_page": "100"})
     zone_path = "/zones/" + urllib.parse.quote(zone_id, safe="") + "/dns_records"
     found = api_request("GET", zone_path + "?" + query, token).get("result", [])
@@ -104,6 +106,15 @@ def main() -> int:
         ):
             print(f"No change: {record_name} already points to {entry_ip} (DNS-only, automatic TTL).")
             return 0
+
+        managed_by_fkts2 = (record.get("comment") or "").startswith("Managed by fkts2")
+        if not managed_by_fkts2 and not allow_existing_update:
+            raise RuntimeError(
+                f"{record_name} already has an A record pointing to {record.get('content')} "
+                f"(proxied={record.get('proxied')}). Refusing to overwrite an existing service. "
+                "Inspect the record first; set CF_ALLOW_EXISTING_RECORD_UPDATE=true only if you "
+                "intentionally want fkts2 to repurpose it."
+            )
 
         result = api_request(
             "PUT",

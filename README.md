@@ -56,7 +56,6 @@ The preflight still requires both addresses to be assigned locally and verifies 
 - This directory and Compose project are independent of `fkts`.
 - The default inbound port is `443` for standard HTTPS. Xray binds `ENTRY_IP:443`, so that socket must be free before deployment. If another service already owns it, stop/reconfigure that service or explicitly set a different `INBOUND_PORT`.
 - The separate `fkts2-caddy` container binds only to `127.0.0.1:9443`; it does not take over a public web-server listener on ports 80/443. Xray uses the configured `INBOUND_PORT` (443 by default). No existing certificates, UFW rules, or containers from `fkts` are changed.
-- Change `INBOUND_PORT` to `443` only during a deliberate cutover, after checking what currently owns that socket.
 
 ## Modules
 

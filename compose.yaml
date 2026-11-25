@@ -72,12 +72,15 @@ services:
     container_name: fkts2-unbound
     network_mode: host
     restart: unless-stopped
-    user: "101:102"
+    # Start with only the capabilities needed to bind port 53 and drop to
+    # the image's unbound user (101:102); Unbound then sheds these capabilities.
+    user: "0:0"
     cap_drop:
       - ALL
-    # Unbound runs as its dedicated image user and needs only to bind port 53.
     cap_add:
       - NET_BIND_SERVICE
+      - SETGID
+      - SETUID
     security_opt:
       - no-new-privileges:true
     read_only: true

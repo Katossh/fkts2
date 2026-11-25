@@ -63,6 +63,7 @@ The preflight still requires both addresses to be assigned locally and verifies 
 
 | File | Responsibility |
 |---|---|
+| `00-dns.json` | Routes Xray's DNS lookups through the system resolver (`localhost`) |
 | `00-log.json` | Conservative logging; access log disabled |
 | `10-inbounds.json` | VLESS + REALITY inbound bound to `ENTRY_IP` |
 | `20-outbounds.json` | `freedom` outbound bound to `EXIT_IP`, plus blackhole |
@@ -71,6 +72,67 @@ The preflight still requires both addresses to be assigned locally and verifies 
 The `caddy/` module serves a small HTTPS fallback website on **127.0.0.1:9443 only**. Caddy obtains and renews a public certificate through Cloudflare DNS-01. Xray REALITY forwards unauthenticated TLS handshakes to this local listener (`REALITY_TARGET=127.0.0.1:9443`). This is the self-steal/fallback component; it does not expose Caddy on public ports 80 or 443.
 
 The source `.env` and generated files under `runtime/` are excluded from Git because they contain credentials/private keys.
+
+## DNS resolution (Unbound -> dnscrypt-proxy -> Cloudflare DoH)
+
+The resolver is implemented as two separate Compose services with separate configuration directories:
+
+```text
+Applications on the VPS
+  systemd-resolved (stub: 127.0.0.53)
+        |
+        v
+  Unbound (127.0.0.1:53)
+    - cache
+    - local DNSSEC validation
+    - no plaintext fallback
+        |
+        v
+  dnscrypt-proxy (127.0.0.1:5053)
+    - Cloudflare DoH over HTTPS/TCP
+    - static resolver stamp with a pinned resolver IP
+    - no system-DNS/bootstrap dependency
+        |
+        v
+  Cloudflare DNS-over-HTTPS
+```
+
+- `resolver/unbound/unbound.conf` configures Unbound to listen **only on 127.0.0.1:53** and forward every name to `127.0.0.1:5053`. `forward-first: no` prevents Unbound from falling back to ordinary recursive DNS if the encrypted upstream fails. Unbound validates DNSSEC locally using its validator module and persistent root trust anchor in the `unbound_data` volume.
+- `resolver/dnscrypt-proxy/dnscrypt-proxy.toml` selects the official Cloudflare DoH stamp. Its IP address is included in the stamp, so the proxy does not need plaintext DNS to discover its upstream. HTTP/3 is disabled; the upstream is DoH over HTTPS/TCP. The proxy cache is disabled so Unbound is the single cache.
+- Neither DNS service publishes a public port. Both use the host network namespace but bind only to loopback: Unbound on UDP/TCP 53 and dnscrypt-proxy on UDP/TCP 5053. No UFW rule for either port should be added.
+- `scripts/deploy.sh` starts the DNS services before Caddy and installs `/etc/systemd/resolved.conf.d/90-fkts2-unbound.conf`. It sets global DNS to `127.0.0.1`, routes all DNS domains through it (`Domains=~.`), clears fallback DNS, and enables systemd-resolved DNSSEC checking. It leaves the systemd stub listener and `/etc/resolv.conf` symlink intact. The script requires root and an active `systemd-resolved` service.
+- Xray's generated `00-dns.json` uses `servers: ["localhost"]`, which delegates its built-in DNS lookups to the host's configured resolver. Caddy's DNS-01 propagation resolver is also set to `127.0.0.1`; it no longer bypasses the local chain via `1.1.1.1`.
+- The existing `cloudflare-dns` service under the `dns` Compose profile is a separate Cloudflare API helper for managing the public A record. It is not a DNS resolver and remains independent of these two services.
+
+The upstream provider is Cloudflare: it can see the DNS questions and the VPS source IP. DoH protects the DNS exchange from passive observation between the VPS and Cloudflare; it does not hide queries from Cloudflare itself. If Cloudflare DoH is unreachable, uncached lookups fail rather than leaking to a plaintext resolver.
+
+After deployment, verify the chain:
+
+```bash
+resolvectl status
+resolvectl query cloudflare.com
+
+# Query Unbound directly; the AD flag should be present for a valid signed answer.
+dig @127.0.0.1 dnssec.works A +dnssec
+
+# This intentionally broken DNSSEC domain should return SERVFAIL.
+dig @127.0.0.1 dnssec-failed.org A
+
+# Confirm both listeners are loopback-only.
+sudo ss -lntup | grep -E ':(53|5053)\\b'
+```
+
+To remove only the system DNS override and return to the remaining systemd-resolved DNS sources:
+
+```bash
+sudo bash ./scripts/dns/rollback-system-resolver.sh
+```
+
+Only after rolling back the host resolver should you stop the resolver services:
+
+```bash
+docker compose stop unbound dnscrypt-proxy
+```
 
 ## Bootstrap
 
@@ -175,7 +237,7 @@ bash ./scripts/preflight.sh
 bash ./scripts/deploy.sh
 ```
 
-`preflight.sh` checks that both IPs are present on the host, that the kernel can route using `EXIT_IP`, and that Compose accepts the service definition. `deploy.sh` builds and validates Caddy, starts the local fallback, waits until its Cloudflare DNS-01 certificate is ready, runs Xray's own `run -test` against all generated fragments, and only then starts Xray.
+`preflight.sh` checks that both IPs are present on the host, that the kernel can route using `EXIT_IP`, and that Compose accepts the service definition. `deploy.sh` builds and validates Caddy, starts the Unbound/dnscrypt-proxy DNS chain, configures the host's `systemd-resolved` upstream, starts the local fallback, waits until its Cloudflare DNS-01 certificate is ready, runs Xray's own `run -test` against all generated fragments, and only then starts Xray. Run deployment as root because it installs the system DNS drop-in.
 
 The repository stores shell scripts as regular GitHub content files. Invoke them through `bash` as shown above.
 

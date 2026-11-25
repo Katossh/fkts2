@@ -42,7 +42,7 @@ The source `.env` and generated files under `runtime/` are excluded from Git bec
 
 ## Bootstrap
 
-Run these commands from the `fkts2` directory on the VPS:
+Run these commands from the `fkts2` directory on the VPS. The bootstrap copies `.env.example` to a private `.env`; edit that file before deploying anything:
 
 ```bash
 bash ./scripts/init.sh
@@ -58,11 +58,45 @@ Then edit `.env`:
 
 - `ENTRY_IP`: first IP, used for the inbound listener
 - `EXIT_IP`: second IP, used as the outbound source address
-- `ENTRY_ADDRESS`: IP or DNS name clients will connect to
+- `ENTRY_ADDRESS`: DNS name clients will connect to; default is `xray.katossh.dpdns.org`
 - `REALITY_TARGET` and `REALITY_SERVER_NAME`: a real TLS target and SNI that the target accepts
 - `INBOUND_PORT`: leave `8443` while staging; use `443` only during cutover
 
 `init.sh` creates a new client UUID and short ID. Do not publish `.env` or `runtime/`.
+
+## Cloudflare DNS deployment
+
+The optional `cloudflare-dns` Compose service manages exactly one dedicated record:
+
+- Zone: `katossh.dpdns.org`
+- Record: `xray.katossh.dpdns.org`
+- Type: `A`
+- Content: `ENTRY_IP`
+- Proxy: **DNS-only** (`proxied=false`, grey cloud)
+- TTL: automatic (`1`)
+
+It does not touch the zone apex or the existing `gw`, `cdn`, or `fallback` records. It refuses record names outside `CF_ZONE_NAME` and fails rather than choosing between duplicate A records. If a CNAME already occupies the dedicated hostname, Cloudflare will reject the A-record creation; resolve that conflict explicitly instead of deleting records automatically.
+
+### Cloudflare credentials
+
+Create an API token scoped to this zone with **Zone / DNS / Edit** permission and set:
+
+- `CF_API_TOKEN`: the token (keep it private; never commit `.env`)
+- `CF_ZONE_ID`: the Zone ID shown on the Cloudflare zone overview
+- `CF_ZONE_NAME`: `katossh.dpdns.org`
+- `CF_RECORD_NAME`: `xray.katossh.dpdns.org`
+
+The token should be restricted to the `katossh.dpdns.org` zone. No Global API Key is needed.
+
+After setting `ENTRY_IP` and the Cloudflare values in `.env`, deploy the record:
+
+```bash
+bash ./scripts/deploy-domain.sh
+```
+
+This builds and runs a short-lived, unprivileged container. The operation is idempotent: it creates the A record if missing, or updates only that record if its address/proxy mode/TTL differs. It deliberately forces DNS-only mode because the Xray/REALITY listener must receive direct connections; ordinary Cloudflare proxying is not enabled for this hostname. The generated client profile will use `ENTRY_ADDRESS=xray.katossh.dpdns.org`.
+
+No AAAA record is created. Add IPv6 only after the VPS has a working global IPv6 address and Xray/firewall routing has been configured for it.
 
 ## Validate and start
 

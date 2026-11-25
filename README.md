@@ -1,6 +1,6 @@
-# fkts2 — Xray on one VPS with two public IPs
+# fkts2 — Xray on one VPS with one or two public IPs
 
-A separate, modular Docker Compose stack for this topology:
+A separate, modular Docker Compose stack. It supports temporary single-IP staging and the intended two-IP topology:
 
 ```text
 Client -- VLESS + REALITY --> ENTRY_IP:INBOUND_PORT
@@ -12,13 +12,46 @@ Client -- VLESS + REALITY --> ENTRY_IP:INBOUND_PORT
                          websites see EXIT_IP
 ```
 
-This is **one VPS**, not a two-server chain. There is no second VLESS tunnel and no self-steal. REALITY is used only on the inbound; `freedom.sendThrough` selects the source address for outbound connections.
+This is **one VPS**, not a two-server chain. There is no second VLESS tunnel and no self-steal. REALITY is used only on the inbound; `freedom.sendThrough` selects the source address for outbound connections. In single-IP mode, both addresses are intentionally identical, so websites see the same IP used by the inbound.
 
 ## Why the container uses host networking
 
 `sendThrough` binds outbound sockets to `EXIT_IP`. The Xray process therefore needs to see the host's actual addresses in its network namespace. Docker bridge networking would put Xray in a separate namespace and normally make the host's public `EXIT_IP` unavailable for `bind(2)`. The Compose service uses `network_mode: host` and intentionally has no `ports:` section.
 
 The host must have **both IPs configured/routed locally**. Merely seeing two IPs in the provider dashboard is not enough. The preflight checks local address assignment and asks the kernel for a route sourced from `EXIT_IP`; it does not modify host networking.
+
+## Single-IP staging mode
+
+You can deploy and test the service before purchasing or configuring a second public IP. Set these values in the private `.env` file:
+
+```dotenv
+SINGLE_IP_MODE=true
+ENTRY_IP=48.103.144.17
+EXIT_IP=48.103.144.17
+ENTRY_ADDRESS=xray.katossh.dpdns.org
+INBOUND_PORT=8443
+```
+
+Replace `48.103.144.17` if the VPS entry address changes. In this mode, inbound and outbound traffic use the same IPv4 address. This is useful for testing DNS, REALITY, Docker, and basic connectivity, but it does **not** provide IP separation.
+
+The renderer rejects identical ENTRY/EXIT addresses unless `SINGLE_IP_MODE=true`. It also rejects different addresses while single-IP mode is enabled, preventing an accidental ambiguous configuration.
+
+When a second public IP has been assigned and configured on the host, switch to:
+
+```dotenv
+SINGLE_IP_MODE=false
+ENTRY_IP=YOUR_ENTRY_IP
+EXIT_IP=YOUR_SECOND_IP
+```
+
+Then rerun:
+
+```bash
+bash ./scripts/render.sh
+bash ./scripts/preflight.sh
+```
+
+The preflight still requires both addresses to be assigned locally and verifies that the kernel has a route using EXIT_IP.
 
 ## Isolation from the current `fkts`
 
@@ -140,7 +173,7 @@ The generated client profile uses the current `password` field for the REALITY p
 
 ## Important caveats
 
-1. `EXIT_IP` must be a source address that the provider permits. Some providers route an additional IPv4 through a gateway or require a specific `/32` route; the preflight cannot invent that provider-specific setup.
+1. In two-IP mode, `EXIT_IP` must be a source address that the provider permits. In single-IP staging mode, `ENTRY_IP` and `EXIT_IP` are intentionally the same. Some providers route an additional IPv4 through a gateway or require a specific `/32` route; the preflight cannot invent that provider-specific setup.
 2. If `EXIT_IP` is not assigned in the host network namespace, Xray's `sendThrough` bind will fail. Do not solve that by blindly enabling non-local binds; configure the address and route correctly first.
 3. REALITY forwards unauthenticated handshakes to `REALITY_TARGET`. Choose a real target/SNI pair deliberately; do not point it at a generic CDN front door without understanding the fallback behaviour.
 4. `geoip:private` requires the geoip data bundled with the official Xray image. The generated config blocks private destinations but does not implement country/domain split routing.

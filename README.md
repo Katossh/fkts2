@@ -189,7 +189,7 @@ After setting `ENTRY_IP` and the Cloudflare values in `.env`, deploy the record.
 bash ./scripts/deploy-domain.sh
 ```
 
-This builds and runs a short-lived, unprivileged container. It creates the A record if missing, leaves it alone if it is already correct, and updates a previously fkts2-managed record when necessary. It deliberately forces DNS-only mode because the Xray/REALITY listener must receive direct connections; ordinary Cloudflare proxying is not enabled for this hostname. The client profile uses whatever hostname you set in `ENTRY_ADDRESS` (which must match `CF_RECORD_NAME`).
+This script first prepares the persistent Unbound trust-anchor volume, then runs the DNS-profile Cloudflare helper. That helper automatically starts and waits for the local Unbound/dnscrypt-proxy chain, so it can resolve the Cloudflare API hostname without falling back to an external plaintext resolver. It builds and runs a short-lived, unprivileged container. It creates the A record if missing, leaves it alone if it is already correct, and updates a previously fkts2-managed record when necessary. It deliberately forces DNS-only mode because the Xray/REALITY listener must receive direct connections; ordinary Cloudflare proxying is not enabled for this hostname. The client profile uses whatever hostname you set in `ENTRY_ADDRESS` (which must match `CF_RECORD_NAME`).
 
 No AAAA record is created. Add IPv6 only after the VPS has a working global IPv6 address and Xray/firewall routing has been configured for it.
 

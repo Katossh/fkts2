@@ -2,6 +2,11 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "Run deploy.sh as root because it configures the host system resolver." >&2
+  exit 1
+fi
+
 bash ./scripts/preflight.sh
 
 command -v curl >/dev/null || {
@@ -19,6 +24,10 @@ echo "Building and validating the Caddy self-steal fallback..."
 docker compose build caddy
 docker compose run --rm --no-deps --entrypoint /usr/bin/caddy caddy validate \
   --config /etc/caddy/Caddyfile --adapter caddyfile
+
+echo "Starting the local DNS chain (Unbound -> dnscrypt-proxy -> Cloudflare DoH)..."
+docker compose up -d unbound
+bash ./scripts/dns/configure-system-resolver.sh
 
 echo "Starting Caddy on 127.0.0.1:9443 and requesting its DNS-01 certificate..."
 docker compose up -d caddy

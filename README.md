@@ -126,17 +126,13 @@ dig @127.0.0.1 dnssec-failed.org A
 sudo ss -lntup | grep -E ':(53|5053)\b'
 ```
 
-To remove only the system DNS override and return to the remaining systemd-resolved DNS sources:
+To remove only the system DNS override and return the host's default resolver selection to its previous systemd-resolved configuration:
 
 ```bash
 sudo bash ./scripts/dns/rollback-system-resolver.sh
 ```
 
-Only after rolling back the host resolver should you stop the resolver services:
-
-```bash
-docker compose stop unbound dnscrypt-proxy
-```
+This rollback affects the host's default resolver only. **Do not stop Unbound or dnscrypt-proxy while Caddy and Xray still point to `127.0.0.1`**; those services would lose their configured DNS upstream. A complete removal also requires reverting the Caddy resolver, the generated Xray DNS module, the Compose dependencies/services, and then recreating the affected containers.
 
 ## Bootstrap
 

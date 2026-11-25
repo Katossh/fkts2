@@ -59,10 +59,13 @@ DROPIN="${DROPIN_DIR}/90-fkts2-unbound.conf"
 CONFIG="$(cat <<'EOF'
 # Managed by fkts2. Remove with scripts/dns/rollback-system-resolver.sh.
 [Resolve]
+DNS=
 DNS=127.0.0.1
 FallbackDNS=
+Domains=
 Domains=~.
 DNSSEC=yes
+DNSOverTLS=no
 EOF
 )"
 

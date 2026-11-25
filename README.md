@@ -22,17 +22,15 @@ The host must have **both IPs configured/routed locally**. Merely seeing two IPs
 
 ## Single-IP staging mode
 
-You can deploy and test the service before purchasing or configuring a second public IP. Set these values in the private `.env` file:
+You can deploy and test the service before purchasing or configuring a second public IP. After creating `.env`, run:
 
-```dotenv
-SINGLE_IP_MODE=true
-ENTRY_IP=48.103.144.17
-EXIT_IP=48.103.144.17
-ENTRY_ADDRESS=xray.katossh.dpdns.org
-INBOUND_PORT=8443
+```bash
+bash ./scripts/set-single-ip.sh 48.103.144.17
 ```
 
-Replace `48.103.144.17` if the VPS entry address changes. In this mode, inbound and outbound traffic use the same IPv4 address. This is useful for testing DNS, REALITY, Docker, and basic connectivity, but it does **not** provide IP separation.
+Pass the VPS public IPv4 address as the argument. The helper changes only `SINGLE_IP_MODE`, `ENTRY_IP`, `EXIT_IP`, and `ENTRY_ADDRESS`; it preserves the rest of `.env` and keeps its permissions private. Replace `48.103.144.17` if the VPS entry address changes.
+
+In this mode, inbound and outbound traffic use the same IPv4 address. This is useful for testing DNS, REALITY, Docker, and basic connectivity, but it does **not** provide IP separation.
 
 The renderer rejects identical ENTRY/EXIT addresses unless `SINGLE_IP_MODE=true`. It also rejects different addresses while single-IP mode is enabled, preventing an accidental ambiguous configuration.
 

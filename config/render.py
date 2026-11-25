@@ -126,6 +126,11 @@ def main() -> int:
     XRAY_DIR.chmod(0o700)
 
     modules = {
+        "00-dns.json": {
+            # Xray's localhost DNS server delegates to the host's configured resolver.
+            # On this deployment that is systemd-resolved -> Unbound -> dnscrypt-proxy.
+            "dns": {"servers": ["localhost"]}
+        },
         "00-log.json": {
             "log": {"logLevel": "warning", "access": "none"}
         },

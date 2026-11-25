@@ -74,16 +74,31 @@ def main() -> int:
             "or configure a distinct EXIT_IP."
         )
 
-    entry_address = required(env, "ENTRY_ADDRESS")
+    entry_address = required(env, "ENTRY_ADDRESS").rstrip(".").lower()
+    server_name = required(env, "REALITY_SERVER_NAME").rstrip(".").lower()
+    record_name = required(env, "CF_RECORD_NAME").rstrip(".").lower()
+    target = required(env, "REALITY_TARGET")
+
+    if entry_address != record_name:
+        raise ValueError(
+            "ENTRY_ADDRESS must match CF_RECORD_NAME for this self-steal deployment "
+            f"(got {entry_address!r} and {record_name!r})"
+        )
+    if server_name != record_name:
+        raise ValueError(
+            "REALITY_SERVER_NAME must match CF_RECORD_NAME so Caddy can serve the REALITY SNI "
+            f"(got {server_name!r} and {record_name!r})"
+        )
+    if target != "127.0.0.1:9443":
+        raise ValueError("Self-steal requires REALITY_TARGET=127.0.0.1:9443")
+
     port_text = required(env, "INBOUND_PORT")
     if not port_text.isdigit() or not 1 <= int(port_text) <= 65535:
         raise ValueError("INBOUND_PORT must be an integer from 1 to 65535")
     port = int(port_text)
 
-    server_name = required(env, "REALITY_SERVER_NAME")
     if "://" in server_name or "/" in server_name or " " in server_name:
         raise ValueError("REALITY_SERVER_NAME must be a hostname, not a URL")
-    target = required(env, "REALITY_TARGET")
     if ":" not in target or target.startswith(":") or target.endswith(":"):
         raise ValueError("REALITY_TARGET must be host:port (for example, www.example.com:443)")
     target_host, target_port = target.rsplit(":", 1)

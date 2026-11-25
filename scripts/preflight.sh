@@ -7,6 +7,15 @@ command -v ip >/dev/null || { echo "iproute2 (ip) is required on the VPS host." 
 command -v docker >/dev/null || { echo "Docker is required." >&2; exit 1; }
 docker compose version >/dev/null
 
+for resolver_config in \
+  resolver/dnscrypt-proxy/dnscrypt-proxy.toml \
+  resolver/unbound/unbound.conf; do
+  [[ -f "${resolver_config}" ]] || {
+    echo "Missing DNS resolver configuration: ${resolver_config}" >&2
+    exit 1
+  }
+done
+
 python3 config/render.py
 read_env() {
   awk -F= -v key="$1" '$1 == key { value=$2; gsub(/\r/, "", value); sub(/^[[:space:]]+/, "", value); sub(/[[:space:]]+$/, "", value) } END { print value }' .env

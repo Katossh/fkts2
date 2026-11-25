@@ -17,7 +17,7 @@ fi
 
 echo "Building and validating the Caddy self-steal fallback..."
 docker compose build caddy
-docker compose run --rm --no-deps caddy validate \
+docker compose run --rm --no-deps --entrypoint /usr/bin/caddy caddy validate \
   --config /etc/caddy/Caddyfile --adapter caddyfile
 
 echo "Starting Caddy on 127.0.0.1:9443 and requesting its DNS-01 certificate..."

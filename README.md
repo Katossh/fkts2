@@ -69,6 +69,8 @@ The preflight still requires both addresses to be assigned locally and verifies 
 | `20-outbounds.json` | `freedom` outbound bound to `EXIT_IP`, plus blackhole |
 | `30-routing.json` | Blocks private-address destinations; all other traffic uses the first outbound (`exit-ip-2`) |
 
+The `caddy/` module serves a small HTTPS fallback website on **127.0.0.1:9443 only**. Caddy obtains and renews a public certificate through Cloudflare DNS-01. Xray REALITY forwards unauthenticated TLS handshakes to this local listener (`REALITY_TARGET=127.0.0.1:9443`). This is the self-steal/fallback component; it does not expose Caddy on public ports 80 or 443.
+
 The source `.env` and generated files under `runtime/` are excluded from Git because they contain credentials/private keys.
 
 ## Bootstrap
@@ -90,7 +92,8 @@ Then edit `.env`:
 - `ENTRY_IP`: first IP, used for the inbound listener
 - `EXIT_IP`: second IP, used as the outbound source address
 - `ENTRY_ADDRESS`: DNS name clients will connect to; default is `xray.katossh.dpdns.org`
-- `REALITY_TARGET` and `REALITY_SERVER_NAME`: a real TLS target and SNI that the target accepts
+- `REALITY_TARGET`: `127.0.0.1:9443` for the local Caddy fallback
+- `REALITY_SERVER_NAME`: the hostname covered by the Caddy certificate; normally the same hostname as `ENTRY_ADDRESS` and `CF_RECORD_NAME`
 - `INBOUND_PORT`: leave `8443` while staging; use `443` only during cutover
 
 `init.sh` creates a new client UUID and short ID. Do not publish `.env` or `runtime/`.
@@ -106,7 +109,7 @@ The optional `cloudflare-dns` Compose service manages exactly one dedicated reco
 - Proxy: **DNS-only** (`proxied=false`, grey cloud)
 - TTL: automatic (`1`)
 
-It does not touch the zone apex or the existing `gw`, `cdn`, or `fallback` records. It refuses record names outside `CF_ZONE_NAME` and fails rather than choosing between duplicate A records. If a CNAME already occupies the dedicated hostname, Cloudflare will reject the A-record creation; resolve that conflict explicitly instead of deleting records automatically.
+It only manages the hostname configured in `CF_RECORD_NAME`; it refuses names outside `CF_ZONE_NAME` and fails rather than choosing between duplicate A records. **If you set `CF_RECORD_NAME=cdn.katossh.dpdns.org`, that existing `cdn` hostname is the record being managed**—it is not protected merely because it existed before. The helper now refuses to overwrite an existing unmanaged A record unless `CF_ALLOW_EXISTING_RECORD_UPDATE=true`. Inspect the current record and intentionally opt in before repurposing it. If a CNAME occupies the hostname, Cloudflare will reject A-record creation; resolve the conflict explicitly rather than deleting records automatically.
 
 ### Cloudflare credentials
 
@@ -117,7 +120,7 @@ Create an API token scoped to this zone with **Zone / DNS / Edit** permission an
 - `CF_ZONE_NAME`: `katossh.dpdns.org`
 - `CF_RECORD_NAME`: `xray.katossh.dpdns.org`
 
-The token should be restricted to the `katossh.dpdns.org` zone. No Global API Key is needed.
+The token should be restricted to the `katossh.dpdns.org` zone and include **Zone / Zone / Read** plus **Zone / DNS / Edit**. DNS Edit alone may be insufficient because Caddy's Cloudflare DNS provider must discover the zone. No Global API Key is needed. The same token is used by the one-shot DNS service and Caddy for ACME DNS-01 challenges.
 
 After setting `ENTRY_IP` and the Cloudflare values in `.env`, deploy the record:
 
@@ -128,6 +131,28 @@ bash ./scripts/deploy-domain.sh
 This builds and runs a short-lived, unprivileged container. The operation is idempotent: it creates the A record if missing, or updates only that record if its address/proxy mode/TTL differs. It deliberately forces DNS-only mode because the Xray/REALITY listener must receive direct connections; ordinary Cloudflare proxying is not enabled for this hostname. The generated client profile will use `ENTRY_ADDRESS=xray.katossh.dpdns.org`.
 
 No AAAA record is created. Add IPv6 only after the VPS has a working global IPv6 address and Xray/firewall routing has been configured for it.
+
+## REALITY self-steal fallback (Caddy)
+
+The Xray inbound uses:
+
+```dotenv
+REALITY_TARGET=127.0.0.1:9443
+REALITY_SERVER_NAME=your-selected-hostname.katossh.dpdns.org
+```
+
+Caddy is built with the Cloudflare DNS provider module and binds only to `127.0.0.1:9443`. It serves `caddy/site/index.html` and requests a trusted certificate using ACME DNS-01. The Cloudflare API token must have Zone Read and DNS Edit on the `katossh.dpdns.org` zone.
+
+DNS-01 writes a temporary `_acme-challenge` TXT record through the Cloudflare API; it does not require public ports 80 or 443 to be opened. Caddy does not bind public 80/443 and therefore does not take over an existing web server or the existing `fkts` listeners. See the [Caddy DNS challenge docs](https://caddyserver.com/docs/automatic-https#dns-challenge) and [Cloudflare provider requirements](https://github.com/caddy-dns/cloudflare).
+
+Before deploying, keep these names consistent:
+
+- `CF_RECORD_NAME`: the public A-record name that points to ENTRY_IP
+- `ENTRY_ADDRESS`: the hostname used by clients
+- `REALITY_SERVER_NAME`: the SNI name Caddy obtains its certificate for
+- `REALITY_TARGET`: exactly `127.0.0.1:9443`
+
+Usually the first three should be the same hostname. If you repurpose an existing record such as `cdn.katossh.dpdns.org`, first verify that it is not serving another application.
 
 ## Validate and start
 
@@ -173,7 +198,7 @@ The generated client profile uses the current `password` field for the REALITY p
 
 1. In two-IP mode, `EXIT_IP` must be a source address that the provider permits. In single-IP staging mode, `ENTRY_IP` and `EXIT_IP` are intentionally the same. Some providers route an additional IPv4 through a gateway or require a specific `/32` route; the preflight cannot invent that provider-specific setup.
 2. If `EXIT_IP` is not assigned in the host network namespace, Xray's `sendThrough` bind will fail. Do not solve that by blindly enabling non-local binds; configure the address and route correctly first.
-3. REALITY forwards unauthenticated handshakes to `REALITY_TARGET`. Choose a real target/SNI pair deliberately; do not point it at a generic CDN front door without understanding the fallback behaviour.
+3. REALITY forwards unauthenticated handshakes to `REALITY_TARGET`; in this deployment that is the loopback-only Caddy listener. Caddy must have successfully obtained a certificate for `REALITY_SERVER_NAME` before Xray is started.
 4. `geoip:private` requires the geoip data bundled with the official Xray image. The generated config blocks private destinations but does not implement country/domain split routing.
 5. This is a staging scaffold. It does not deploy itself to the remote VPS from ChatGPT, and it has not been run against the VPS provider's network. The host-specific IP assignment and final port cutover must be verified on that machine.
 

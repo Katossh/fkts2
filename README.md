@@ -45,8 +45,8 @@ The source `.env` and generated files under `runtime/` are excluded from Git bec
 Run these commands from the `fkts2` directory on the VPS:
 
 ```bash
-./scripts/init.sh
-./scripts/keygen.sh
+bash ./scripts/init.sh
+bash ./scripts/keygen.sh
 ```
 
 Copy the output values into `.env`:
@@ -67,11 +67,13 @@ Then edit `.env`:
 ## Validate and start
 
 ```bash
-./scripts/preflight.sh
-./scripts/deploy.sh
+bash ./scripts/preflight.sh
+bash ./scripts/deploy.sh
 ```
 
 `preflight.sh` checks that both IPs are present on the host, that the kernel can route using `EXIT_IP`, and that Compose accepts the service definition. `deploy.sh` then runs Xray's own `run -test` against all generated fragments before starting the container.
+
+The repository stores shell scripts as regular GitHub content files. Invoke them through `bash` as shown above.
 
 Useful commands:
 
@@ -84,7 +86,7 @@ docker compose exec xray /usr/local/bin/xray version
 To regenerate the fragments after changing `.env`:
 
 ```bash
-./scripts/render.sh
+bash ./scripts/render.sh
 docker compose run --rm --no-deps xray run -test -confdir /usr/local/etc/xray
 ```
 

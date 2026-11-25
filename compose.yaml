@@ -74,9 +74,11 @@ services:
     restart: unless-stopped
     cap_drop:
       - ALL
-    # Unbound binds port 53 as root, then drops to its dedicated unbound user.
+    # Bind port 53, then drop privileges to the dedicated unbound user.
     cap_add:
       - NET_BIND_SERVICE
+      - SETUID
+      - SETGID
     security_opt:
       - no-new-privileges:true
     read_only: true

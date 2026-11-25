@@ -20,6 +20,12 @@ if [[ -z "$REALITY_SERVER_NAME" || "$REALITY_SERVER_NAME" == "REPLACE_ME" ]]; th
   exit 1
 fi
 
+echo "Validating DNS resolver configuration..."
+docker compose run --rm --no-deps --entrypoint dnscrypt-proxy dnscrypt-proxy \
+  -config /config/dnscrypt-proxy.toml -check
+docker compose run --rm --no-deps --entrypoint /usr/sbin/unbound-checkconf unbound \
+  /etc/unbound/unbound.conf
+
 echo "Building and validating the Caddy self-steal fallback..."
 docker compose build caddy
 docker compose run --rm --no-deps --entrypoint /usr/bin/caddy caddy validate \

@@ -48,4 +48,4 @@ if [[ "${SINGLE_IP_MODE,,}" == "true" ]]; then
 else
   echo "Mode: separate entry/exit IPs."
 fi
-echo "Planned listener: ${ENTRY_IP}:${INBOUND_PORT} (staging default is 8443)."
+echo "Planned listener: ${ENTRY_IP}:${INBOUND_PORT} (default is 443)."

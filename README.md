@@ -192,9 +192,9 @@ bash ./scripts/deploy.sh
 After Unbound and dnscrypt-proxy are healthy, `deploy.sh` runs the Cloudflare helper **before restarting Caddy or Xray**. It compares the dedicated `CF_RECORD_NAME` A record with the current `ENTRY_IP`:
 
 - If the record is absent, it creates it.
-- If it already points to `ENTRY_IP` and is DNS-only with automatic TTL, it does nothing.
+- If an unmarked record already has the desired `ENTRY_IP`, is DNS-only and has automatic TTL, the helper adopts it by adding an fkts2 ownership comment; the destination IP and routing mode do not change.
 - If the record was previously marked as managed by fkts2, it updates the A record to the new `ENTRY_IP` when the VPS address changes.
-- If the name already has a different, unmarked A record, or is proxied through Cloudflare, it refuses to overwrite it unless you explicitly set `CF_ALLOW_EXISTING_RECORD_UPDATE=true` after checking that this hostname is dedicated to fkts2. After the helper successfully writes the fkts2 ownership comment, you can set this option back to `false`.
+- If the record points elsewhere, is proxied through Cloudflare, or carries another application's comment, it refuses to overwrite it unless you explicitly set `CF_ALLOW_EXISTING_RECORD_UPDATE=true` after checking that this hostname is dedicated to fkts2. After the helper successfully writes the fkts2 ownership comment, set this option back to `false`.
 
 The helper only manages the one A record named by `CF_RECORD_NAME`. It never deletes old hostnames, CNAMEs, AAAA records or other records. If you change the hostname itself, update `CF_RECORD_NAME`, `ENTRY_ADDRESS` and `REALITY_SERVER_NAME` consistently; the previous hostname is deliberately left untouched.
 

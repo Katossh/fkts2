@@ -79,8 +79,8 @@ The resolver is implemented as two separate Compose services with separate confi
 
 ```text
 Applications on the VPS
-  systemd-resolved (stub: 127.0.0.53)
-        |
+  systemd-resolved (global DNS: 127.0.0.1)
+        |  libc clients via 127.0.0.53 stub
         v
   Unbound (127.0.0.1:53)
     - cache
@@ -100,9 +100,10 @@ Applications on the VPS
 - `resolver/unbound/unbound.conf` configures Unbound to listen **only on 127.0.0.1:53** and forward every name to `127.0.0.1:5053`. `forward-first: no` prevents Unbound from falling back to ordinary recursive DNS if the encrypted upstream fails. Unbound validates DNSSEC locally using its validator module and persistent root trust anchor in the `unbound_data` volume.
 - `resolver/dnscrypt-proxy/dnscrypt-proxy.toml` selects the official Cloudflare DoH stamp. Its IP address is included in the stamp, so the proxy does not need plaintext DNS to discover its upstream. HTTP/3 is disabled; the upstream is DoH over HTTPS/TCP. The proxy cache is disabled so Unbound is the single cache.
 - Neither DNS service publishes a public port. Both use the host network namespace but bind only to loopback: Unbound on UDP/TCP 53 and dnscrypt-proxy on UDP/TCP 5053. No UFW rule for either port should be added.
-- `scripts/deploy.sh` starts the DNS services before Caddy and installs `/etc/systemd/resolved.conf.d/90-fkts2-unbound.conf`. It sets global DNS to `127.0.0.1`, routes all DNS domains through it (`Domains=~.`), clears fallback DNS, and enables systemd-resolved DNSSEC checking. It leaves the systemd stub listener and `/etc/resolv.conf` symlink intact. The script requires root and an active `systemd-resolved` service.
-- Xray's generated `00-dns.json` uses `servers: ["localhost"]`, which delegates its built-in DNS lookups to the host's configured resolver. Caddy's DNS-01 propagation resolver is also set to `127.0.0.1`; it no longer bypasses the local chain via `1.1.1.1`.
-- The existing `cloudflare-dns` service under the `dns` Compose profile is a separate Cloudflare API helper for managing the public A record. It is not a DNS resolver and remains independent of these two services.
+- `scripts/deploy.sh` starts the DNS services before Caddy and installs `/etc/systemd/resolved.conf.d/90-fkts2-unbound.conf`. It sets global DNS to `127.0.0.1`, routes the default DNS namespace through it (`Domains=~.`), clears fallback DNS, and enables systemd-resolved DNSSEC checking. It leaves the systemd stub listener and `/etc/resolv.conf` untouched. Before changing anything, the setup script refuses to continue if `/etc/resolv.conf` contains a non-loopback nameserver, since that could let libc applications bypass Unbound. It then verifies both `resolvectl` and libc (`getent`) lookups. The script requires root and an active `systemd-resolved` service.
+- Xray's generated `00-dns.json` points directly to `127.0.0.1` (Unbound). This avoids relying on the container's own `/etc/resolv.conf`. Caddy's DNS-01 propagation resolver is also set to `127.0.0.1`; it no longer bypasses the local chain via `1.1.1.1`.
+- The optional `cloudflare-dns` service under the `dns` Compose profile is a separate Cloudflare API helper for managing the public A record, not a DNS resolver. It uses host networking and `127.0.0.1` as its DNS server so API hostname lookups use this same chain.
+- The DNS container images are version-pinned community-maintained builds: [`klutchell/unbound`](https://github.com/klutchell/unbound-docker) packages upstream [NLnet Labs Unbound](https://www.nlnetlabs.nl/projects/unbound/about/), and [`klutchell/dnscrypt-proxy`](https://github.com/klutchell/dnscrypt-proxy-docker) packages upstream [DNSCrypt-proxy](https://github.com/DNSCrypt/dnscrypt-proxy). They are not images published by those upstream projects.
 
 The upstream provider is Cloudflare: it can see the DNS questions and the VPS source IP. DoH protects the DNS exchange from passive observation between the VPS and Cloudflare; it does not hide queries from Cloudflare itself. If Cloudflare DoH is unreachable, uncached lookups fail rather than leaking to a plaintext resolver.
 
@@ -119,7 +120,7 @@ dig @127.0.0.1 dnssec.works A +dnssec
 dig @127.0.0.1 dnssec-failed.org A
 
 # Confirm both listeners are loopback-only.
-sudo ss -lntup | grep -E ':(53|5053)\\b'
+sudo ss -lntup | grep -E ':(53|5053)\b'
 ```
 
 To remove only the system DNS override and return to the remaining systemd-resolved DNS sources:

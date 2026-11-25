@@ -109,6 +109,8 @@ services:
   # One-shot helper: the official image ships root.key/root.hints under /var/unbound.
   # The named volume is prepared once so the unbound UID can maintain its trust anchor.
   unbound-data-permissions:
+    profiles:
+      - init
     image: busybox:1.37.0
     network_mode: none
     restart: "no"

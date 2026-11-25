@@ -127,9 +127,9 @@ def main() -> int:
 
     modules = {
         "00-dns.json": {
-            # Xray's localhost DNS server delegates to the host's configured resolver.
-            # On this deployment that is systemd-resolved -> Unbound -> dnscrypt-proxy.
-            "dns": {"servers": ["localhost"]}
+            # Xray shares the host network namespace; use the local Unbound listener directly.
+            # This avoids depending on the container's own /etc/resolv.conf.
+            "dns": {"servers": ["127.0.0.1"]}
         },
         "00-log.json": {
             "log": {"logLevel": "warning", "access": "none"}

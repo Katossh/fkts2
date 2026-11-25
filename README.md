@@ -12,7 +12,7 @@ Client -- VLESS + REALITY --> ENTRY_IP:INBOUND_PORT
                          websites see EXIT_IP
 ```
 
-This is **one VPS**, not a two-server chain. There is no second VLESS tunnel and no self-steal. REALITY is used only on the inbound; `freedom.sendThrough` selects the source address for outbound connections. In single-IP mode, both addresses are intentionally identical, so websites see the same IP used by the inbound.
+This is **one VPS**, not a two-server chain. There is no second VLESS tunnel. REALITY is used on the inbound, with a local Caddy self-steal fallback; `freedom.sendThrough` selects the source address for outbound connections. In single-IP mode, both addresses are intentionally identical, so websites see the same IP used by the inbound.
 
 ## Why the container uses host networking
 
@@ -55,7 +55,7 @@ The preflight still requires both addresses to be assigned locally and verifies 
 
 - This directory and Compose project are independent of `fkts`.
 - The default inbound port is `8443` so the new Xray process does not immediately collide with a current `:443` listener.
-- No Caddy container, certificate files, UFW rules, or existing containers are changed.
+- The separate `fkts2-caddy` container binds only to `127.0.0.1:9443`; it does not take over the existing Caddy service or public ports 80/443. No existing certificates, UFW rules, or containers from `fkts` are changed.
 - Change `INBOUND_PORT` to `443` only during a deliberate cutover, after checking what currently owns that socket.
 
 ## Modules
@@ -113,7 +113,7 @@ It only manages the hostname configured in `CF_RECORD_NAME`; it refuses names ou
 
 ### Cloudflare credentials
 
-Create an API token scoped to this zone with **Zone / DNS / Edit** permission and set:
+Create an API token scoped to this zone with **Zone / Zone / Read** and **Zone / DNS / Edit** permissions and set:
 
 - `CF_API_TOKEN`: the token (keep it private; never commit `.env`)
 - `CF_ZONE_ID`: the Zone ID shown on the Cloudflare zone overview
@@ -122,13 +122,13 @@ Create an API token scoped to this zone with **Zone / DNS / Edit** permission an
 
 The token should be restricted to the `katossh.dpdns.org` zone and include **Zone / Zone / Read** plus **Zone / DNS / Edit**. DNS Edit alone may be insufficient because Caddy's Cloudflare DNS provider must discover the zone. No Global API Key is needed. The same token is used by the one-shot DNS service and Caddy for ACME DNS-01 challenges.
 
-After setting `ENTRY_IP` and the Cloudflare values in `.env`, deploy the record:
+After setting `ENTRY_IP` and the Cloudflare values in `.env`, deploy the record. If the hostname already has an A record belonging to another service, the script will refuse to overwrite it unless you explicitly set `CF_ALLOW_EXISTING_RECORD_UPDATE=true` after reviewing the consequences:
 
 ```bash
 bash ./scripts/deploy-domain.sh
 ```
 
-This builds and runs a short-lived, unprivileged container. The operation is idempotent: it creates the A record if missing, or updates only that record if its address/proxy mode/TTL differs. It deliberately forces DNS-only mode because the Xray/REALITY listener must receive direct connections; ordinary Cloudflare proxying is not enabled for this hostname. The generated client profile will use `ENTRY_ADDRESS=xray.katossh.dpdns.org`.
+This builds and runs a short-lived, unprivileged container. It creates the A record if missing, leaves it alone if it is already correct, and updates a previously fkts2-managed record when necessary. It deliberately forces DNS-only mode because the Xray/REALITY listener must receive direct connections; ordinary Cloudflare proxying is not enabled for this hostname. The client profile uses whatever hostname you set in `ENTRY_ADDRESS` (which must match `CF_RECORD_NAME`).
 
 No AAAA record is created. Add IPv6 only after the VPS has a working global IPv6 address and Xray/firewall routing has been configured for it.
 
@@ -161,7 +161,7 @@ bash ./scripts/preflight.sh
 bash ./scripts/deploy.sh
 ```
 
-`preflight.sh` checks that both IPs are present on the host, that the kernel can route using `EXIT_IP`, and that Compose accepts the service definition. `deploy.sh` then runs Xray's own `run -test` against all generated fragments before starting the container.
+`preflight.sh` checks that both IPs are present on the host, that the kernel can route using `EXIT_IP`, and that Compose accepts the service definition. `deploy.sh` builds and validates Caddy, starts the local fallback, waits until its Cloudflare DNS-01 certificate is ready, runs Xray's own `run -test` against all generated fragments, and only then starts Xray.
 
 The repository stores shell scripts as regular GitHub content files. Invoke them through `bash` as shown above.
 

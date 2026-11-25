@@ -1,6 +1,10 @@
 {
     # This service only listens on loopback:9443. Do not install public :80/:443 redirects.
     auto_https disable_redirects
+
+    servers 127.0.0.1:9443 {
+        protocols h1 h2
+    }
 }
 
 https://{$REALITY_SERVER_NAME}:9443 {

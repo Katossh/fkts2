@@ -245,6 +245,89 @@ Before deploying, keep these names consistent:
 
 Usually the first three should be the same hostname. If you repurpose an existing record such as `cdn.katossh.dpdns.org`, first verify that it is not serving another application.
 
+## Host provisioning and setup scripts
+
+The public entry points are `scripts/setup.sh` (the complete setup) and the independently runnable steps under `scripts/steps/`. Shared implementation functions live under `scripts/internal/`; do not invoke those internal modules directly. Existing top-level helpers such as `scripts/deploy.sh` and `scripts/preflight.sh` remain available for compatibility.
+
+### Complete setup
+
+For a new checkout, initialize and configure `.env` first. Do not rerun key generation on an existing deployment:
+
+```bash
+bash ./scripts/init.sh
+bash ./scripts/keygen.sh
+# Edit .env and provide your existing/new REALITY keys, Cloudflare token/zone, IPs and hostnames.
+sudo bash ./scripts/setup.sh
+```
+
+The complete script runs these steps in order:
+
+1. Update system packages: Ubuntu/Debian use `apt-get update` followed by `apt-get upgrade -y`; Fedora uses `dnf upgrade --refresh -y`.
+2. Install project dependencies: Git, curl, Python, networking/DNS utilities and OpenSSH server. If Docker Engine plus the Compose plugin already work, the existing installation is preserved. Otherwise the script configures Docker's official signed package repository and installs Engine/Compose.
+3. Configure the SSH port from `SSH_PORT` in `.env` (default `48291`).
+4. Run the existing VPN deployment: DNS chain, Cloudflare A-record reconciliation, Caddy and Xray.
+
+System updates do not reboot the VPS automatically. If the package manager reports that a reboot is required, schedule it after checking that SSH access works.
+
+### Run individual steps
+
+Every step can also be run separately as root:
+
+```bash
+sudo bash ./scripts/steps/update-system.sh
+sudo bash ./scripts/steps/install-dependencies.sh
+sudo bash ./scripts/steps/configure-ssh-port.sh
+sudo bash ./scripts/steps/deploy-vpn.sh
+```
+
+Additional standalone operations:
+
+```bash
+sudo bash ./scripts/steps/reconcile-dns.sh
+sudo bash ./scripts/steps/finalize-ssh-port.sh
+```
+
+- `update-system.sh` performs only the OS package update/upgrade.
+- `install-dependencies.sh` installs host dependencies and ensures Docker Engine plus Compose are available.
+- `configure-ssh-port.sh` applies the configured SSH port and firewall/SELinux allowances.
+- `deploy-vpn.sh` deploys the VPN stack without repeating OS updates or dependency installation.
+- `reconcile-dns.sh` updates only the dedicated Cloudflare A record using the existing DNS chain.
+- `finalize-ssh-port.sh` removes the previous SSH listener after the new port has been verified.
+
+### SSH port migration and lockout protection
+
+Set `SSH_PORT` in `.env`; the default is `48291`. It must differ from `INBOUND_PORT`. Existing `.env` files without an `SSH_PORT` entry also use `48291`; no existing credentials or Xray values are regenerated.
+
+The SSH step:
+
+- Detects the active SSH daemon and systemd socket activation where present.
+- Adds the new port to SSH daemon/socket configuration without immediately removing the currently working port.
+- Opens the new TCP port in active UFW or firewalld. On Fedora with enforcing SELinux, it assigns the `ssh_port_t` label. If neither supported firewall is active, it warns that the VPS provider's external firewall/security group must allow the new port.
+- Validates `sshd` configuration, reloads/restarts the relevant unit, and confirms that the new port is listening.
+
+**The old SSH port intentionally remains enabled after migration.** Open a second, independent SSH connection using the new port, for example:
+
+```bash
+ssh -p 48291 root@YOUR_VPS_IP
+```
+
+Only from that new session, run:
+
+```bash
+sudo bash ./scripts/steps/finalize-ssh-port.sh
+```
+
+The finalizer checks the current SSH session's server port (or asks for explicit confirmation when `SSH_CONNECTION` is unavailable), verifies the new listener, and narrows the managed SSH configuration to the new port. It does not remove existing firewall rules for the old port; inspect UFW/firewalld separately if you also want to close those rules.
+
+If the requested SSH port is already active and present in persistent SSH configuration, the step is a no-op. The SSH port is deliberately not changed to the VPN inbound port.
+
+### Internal versus external scripts
+
+- `scripts/setup.sh` is the final end-to-end entry point.
+- `scripts/steps/*.sh` are the public, independently runnable setup steps.
+- `scripts/internal/*.sh` contain shared implementation functions and are called by the public entry points.
+- Existing helpers such as `scripts/init.sh`, `scripts/keygen.sh`, `scripts/render.sh`, `scripts/preflight.sh` and `scripts/deploy.sh` remain available for compatibility.
+
 ## Validate and start
 
 ```bash

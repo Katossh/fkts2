@@ -31,8 +31,14 @@ docker compose build caddy
 docker compose run --rm --no-deps --entrypoint /usr/bin/caddy caddy validate \
   --config /etc/caddy/Caddyfile --adapter caddyfile
 
+echo "Preparing Unbound's persistent DNSSEC trust-anchor volume..."
+# Creating the Unbound container first lets Docker seed the empty named volume
+# with the image's root.hints/root.key files before the ownership helper runs.
+docker compose create --no-deps unbound
+docker compose run --rm --no-deps unbound-data-permissions
+
 echo "Starting the local DNS chain (Unbound -> dnscrypt-proxy -> Cloudflare DoH)..."
-docker compose up -d unbound
+docker compose up -d --force-recreate unbound
 bash ./scripts/dns/configure-system-resolver.sh
 
 echo "Starting Caddy on 127.0.0.1:9443 and requesting its DNS-01 certificate..."

@@ -196,6 +196,9 @@ services:
       CF_RECORD_NAME: ${CF_RECORD_NAME:-xray.katossh.dpdns.org}
       ENTRY_IP: ${ENTRY_IP:-}
       CF_ALLOW_EXISTING_RECORD_UPDATE: ${CF_ALLOW_EXISTING_RECORD_UPDATE:-false}
+    depends_on:
+      unbound:
+        condition: service_healthy
 
 volumes:
   caddy_data:

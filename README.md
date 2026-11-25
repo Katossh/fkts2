@@ -63,7 +63,7 @@ The preflight still requires both addresses to be assigned locally and verifies 
 
 | File | Responsibility |
 |---|---|
-| `00-dns.json` | Routes Xray's DNS lookups through the system resolver (`localhost`) |
+| `00-dns.json` | Routes Xray's DNS lookups directly to local Unbound (`127.0.0.1:53`) |
 | `00-log.json` | Conservative logging; access log disabled |
 | `10-inbounds.json` | VLESS + REALITY inbound bound to `ENTRY_IP` |
 | `20-outbounds.json` | `freedom` outbound bound to `EXIT_IP`, plus blackhole |

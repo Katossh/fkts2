@@ -28,7 +28,7 @@ You can deploy and test the service before purchasing or configuring a second pu
 bash ./scripts/set-single-ip.sh 48.103.144.17
 ```
 
-Pass the VPS public IPv4 address as the argument. The helper changes only `SINGLE_IP_MODE`, `ENTRY_IP`, `EXIT_IP`, and `ENTRY_ADDRESS`; it preserves the rest of `.env` and keeps its permissions private. Replace `48.103.144.17` if the VPS entry address changes.
+Pass the VPS public IPv4 address as the argument. The helper changes `SINGLE_IP_MODE`, `ENTRY_IP`, `EXIT_IP`, `ENTRY_ADDRESS`, `REALITY_TARGET`, and `REALITY_SERVER_NAME` to match the selected `CF_RECORD_NAME`; it preserves Cloudflare credentials, UUID, keys, and the rest of `.env`, and keeps its permissions private. Replace `48.103.144.17` if the VPS entry address changes.
 
 In this mode, inbound and outbound traffic use the same IPv4 address. This is useful for testing DNS, REALITY, Docker, and basic connectivity, but it does **not** provide IP separation.
 

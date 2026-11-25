@@ -40,7 +40,7 @@ done
 echo "Waiting for Unbound -> dnscrypt-proxy -> Cloudflare DoH..."
 ready=false
 for attempt in $(seq 1 30); do
-  if docker compose exec -T unbound /usr/bin/drill-hc @127.0.0.1 cloudflare.com >/dev/null 2>&1; then
+  if docker compose exec -T unbound /usr/bin/drill-hc cloudflare.com @127.0.0.1 >/dev/null 2>&1; then
     ready=true
     break
   fi

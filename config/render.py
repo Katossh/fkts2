@@ -58,10 +58,21 @@ def main() -> int:
     env = load_env(ENV_FILE)
     entry_ip = ipaddress.ip_address(required(env, "ENTRY_IP"))
     exit_ip = ipaddress.ip_address(required(env, "EXIT_IP"))
+
+    single_ip_raw = env.get("SINGLE_IP_MODE", "false").strip().lower()
+    if single_ip_raw not in {"true", "false"}:
+        raise ValueError("SINGLE_IP_MODE must be either true or false")
+    single_ip_mode = single_ip_raw == "true"
+
     if entry_ip.version != exit_ip.version:
         raise ValueError("ENTRY_IP and EXIT_IP must use the same address family for this initial setup")
-    if entry_ip == exit_ip:
-        raise ValueError("ENTRY_IP and EXIT_IP must be different addresses")
+    if single_ip_mode and entry_ip != exit_ip:
+        raise ValueError("SINGLE_IP_MODE=true requires ENTRY_IP and EXIT_IP to be identical")
+    if not single_ip_mode and entry_ip == exit_ip:
+        raise ValueError(
+            "ENTRY_IP and EXIT_IP are identical. Set SINGLE_IP_MODE=true for temporary single-IP deployment, "
+            "or configure a distinct EXIT_IP."
+        )
 
     entry_address = required(env, "ENTRY_ADDRESS")
     port_text = required(env, "INBOUND_PORT")
@@ -198,6 +209,7 @@ def main() -> int:
         print(f"  runtime/xray/{name}")
     print(f"Client profile: runtime/client-config.json")
     print(f"Entry: {entry_ip}:{port}; egress source: {exit_ip}")
+    print(f"Mode: {'single-IP staging' if single_ip_mode else 'separate entry/exit IPs'}")
     print("No service was started or host network settings were changed.")
     return 0
 

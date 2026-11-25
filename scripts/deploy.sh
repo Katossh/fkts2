@@ -40,6 +40,13 @@ docker compose --profile init run --rm --no-deps unbound-data-permissions
 
 echo "Starting the local DNS chain (Unbound -> dnscrypt-proxy -> Cloudflare DoH)..."
 docker compose up -d --force-recreate unbound
+
+echo "Reconciling Cloudflare A record with ENTRY_IP..."
+# The helper creates the dedicated record when absent, updates records already
+# managed by fkts2, and refuses to overwrite an unrelated existing record unless
+# CF_ALLOW_EXISTING_RECORD_UPDATE=true was explicitly set after review.
+docker compose --profile dns run --rm --build cloudflare-dns
+
 bash ./scripts/dns/configure-system-resolver.sh
 
 echo "Starting Caddy on 127.0.0.1:9443 and requesting its DNS-01 certificate..."

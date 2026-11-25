@@ -28,11 +28,19 @@ if address.version != 4 or not address.is_global:
 
 path = Path(".env")
 lines = path.read_text().splitlines()
+record_name = next(
+    (line.split("=", 1)[1].strip() for line in lines
+     if line.strip().startswith("CF_RECORD_NAME=")),
+    "xray.katossh.dpdns.org",
+).rstrip(".").lower()
+
 updates = {
     "SINGLE_IP_MODE": "true",
     "ENTRY_IP": str(address),
     "EXIT_IP": str(address),
-    "ENTRY_ADDRESS": "xray.katossh.dpdns.org",
+    "ENTRY_ADDRESS": record_name,
+    "REALITY_TARGET": "127.0.0.1:9443",
+    "REALITY_SERVER_NAME": record_name,
 }
 seen = set()
 output = []
@@ -58,6 +66,8 @@ path.chmod(0o600)
 print("Enabled single-IP staging mode.")
 print(f"ENTRY_IP = {address}")
 print(f"EXIT_IP  = {address}")
-print("ENTRY_ADDRESS = xray.katossh.dpdns.org")
+print(f"ENTRY_ADDRESS = {record_name}")
+print("REALITY_TARGET = 127.0.0.1:9443")
+print(f"REALITY_SERVER_NAME = {record_name}")
 print("Other .env values and credentials were preserved.")
 PY

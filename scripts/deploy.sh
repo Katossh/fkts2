@@ -30,9 +30,10 @@ docker compose run --rm --no-deps --entrypoint /usr/bin/caddy caddy validate \
   --config /etc/caddy/Caddyfile --adapter caddyfile
 
 echo "Preparing Unbound's persistent DNSSEC trust-anchor volume..."
-# Creating the Unbound container first lets Docker seed the empty named volume
-# with the image's root.hints/root.key files before the ownership helper runs.
-docker compose create --no-deps unbound
+# `docker compose create` has no --no-deps option. Creating the Unbound
+# service also creates any missing dependency containers without starting them.
+# Docker seeds the empty named volume from the image before the ownership helper runs.
+docker compose create unbound
 docker compose run --rm --no-deps --entrypoint /usr/sbin/unbound-checkconf unbound \
   /etc/unbound/unbound.conf
 docker compose --profile init run --rm --no-deps unbound-data-permissions

@@ -95,8 +95,8 @@ services:
       test:
         - CMD
         - /usr/bin/drill-hc
-        - "@127.0.0.1"
         - cloudflare.com
+        - "@127.0.0.1"
       interval: 30s
       timeout: 10s
       retries: 3

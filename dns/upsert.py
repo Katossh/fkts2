@@ -15,8 +15,8 @@ API = "https://api.cloudflare.com/client/v4"
 
 def required(name: str) -> str:
     value = os.environ.get(name, "").strip()
-    if not value:
-        raise ValueError(f"Missing required environment variable: {name}")
+    if not value or value == "REPLACE_ME" or "CHANGE_ME" in value:
+        raise ValueError(f"Set {name} before running the Cloudflare DNS module")
     return value
 
 

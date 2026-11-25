@@ -83,7 +83,8 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=8m
     volumes:
-      - ./resolver/unbound/unbound.conf:/etc/unbound/unbound.conf:ro
+      # Mount the directory so atomic editor saves remain visible inside the container.
+      - ./resolver/unbound:/etc/unbound:ro
       - unbound_data:/var/unbound
     depends_on:
       dnscrypt-proxy:
@@ -149,6 +150,10 @@ services:
   cloudflare-dns:
     profiles:
       - dns
+    # This one-shot API helper must use the host's local resolver chain too.
+    network_mode: host
+    dns:
+      - 127.0.0.1
     build:
       context: ./dns
     image: fkts2-cloudflare-dns:local

@@ -7,8 +7,10 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
-# Prepare the persistent Unbound trust-anchor volume before its non-root service starts.
-docker compose create --no-deps unbound
+# docker compose create has no --no-deps option. This creates the service
+# and any missing dependency containers without starting them, allowing Docker
+# to seed the empty Unbound data volume from the image before ownership is set.
+docker compose create unbound
 docker compose --profile init run --rm --no-deps unbound-data-permissions
 
 # This one-shot API helper depends on the local DNS chain and only manages

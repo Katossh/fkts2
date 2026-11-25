@@ -11,6 +11,8 @@ python3 config/render.py
 ENTRY_IP="$(sed -n 's/^ENTRY_IP=//p' .env | tail -n1)"
 EXIT_IP="$(sed -n 's/^EXIT_IP=//p' .env | tail -n1)"
 INBOUND_PORT="$(sed -n 's/^INBOUND_PORT=//p' .env | tail -n1)"
+SINGLE_IP_MODE="$(sed -n 's/^SINGLE_IP_MODE=//p' .env | tail -n1)"
+SINGLE_IP_MODE="${SINGLE_IP_MODE:-false}"
 
 for address in "$ENTRY_IP" "$EXIT_IP"; do
   if ! ip -o address show | grep -Fq " $address/"; then
@@ -34,5 +36,10 @@ if ! "${ROUTE_TEST_CMD[@]}" >/dev/null 2>&1; then
 fi
 
 docker compose config -q
-echo "Preflight passed: both addresses are local and the kernel can route using EXIT_IP."
+echo "Preflight passed: ENTRY_IP and EXIT_IP are local and the kernel can route using EXIT_IP."
+if [[ "${SINGLE_IP_MODE,,}" == "true" ]]; then
+  echo "Mode: single-IP staging (entry and exit share ${ENTRY_IP})."
+else
+  echo "Mode: separate entry/exit IPs."
+fi
 echo "Planned listener: ${ENTRY_IP}:${INBOUND_PORT} (staging default is 8443)."

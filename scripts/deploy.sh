@@ -57,9 +57,13 @@ if [[ "$ready" != true ]]; then
   exit 1
 fi
 
-echo "Caddy fallback is ready. Validating Xray configuration..."
+echo "Caddy fallback is ready. Reloading the active Caddy configuration..."
+docker compose exec caddy caddy reload \
+  --config /etc/caddy/Caddyfile --adapter caddyfile
+
+echo "Validating Xray configuration..."
 docker compose run --rm --no-deps xray run -test -confdir /usr/local/etc/xray
 
-echo "Starting fkts2-xray..."
-docker compose up -d xray
+echo "Applying the generated Xray configuration..."
+docker compose up -d --no-deps --force-recreate xray
 docker compose ps

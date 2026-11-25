@@ -14,6 +14,29 @@ systemctl is-active --quiet systemd-resolved || {
   exit 1
 }
 
+# Do not leave libc applications with a public/non-local nameserver in
+# /etc/resolv.conf: those applications would bypass systemd-resolved/Unbound.
+[[ -r /etc/resolv.conf ]] || {
+  echo "ERROR: /etc/resolv.conf is not readable." >&2
+  exit 1
+}
+mapfile -t current_nameservers < <(awk '$1 == "nameserver" { print $2 }' /etc/resolv.conf)
+if [[ "${#current_nameservers[@]}" -eq 0 ]]; then
+  echo "ERROR: /etc/resolv.conf contains no nameserver entries." >&2
+  exit 1
+fi
+for nameserver in "${current_nameservers[@]}"; do
+  case "${nameserver}" in
+    127.0.0.1|127.0.0.53) ;;
+    *)
+      echo "ERROR: /etc/resolv.conf contains non-loopback DNS server ${nameserver}." >&2
+      echo "Refusing to continue because some applications could bypass the local Unbound resolver." >&2
+      echo "Configure /etc/resolv.conf to use the systemd-resolved stub (127.0.0.53) first." >&2
+      exit 1
+      ;;
+  esac
+done
+
 echo "Waiting for Unbound -> dnscrypt-proxy -> Cloudflare DoH..."
 ready=false
 for attempt in $(seq 1 30); do
@@ -65,7 +88,8 @@ fi
 systemctl restart systemd-resolved
 resolvectl flush-caches
 
-if ! resolvectl query cloudflare.com >/dev/null 2>&1; then
+if ! resolvectl query cloudflare.com >/dev/null 2>&1 \
+    || ! getent ahostsv4 cloudflare.com >/dev/null 2>&1; then
   if [[ "${created}" == true ]]; then
     rm -f "${DROPIN}"
     systemctl restart systemd-resolved

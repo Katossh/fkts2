@@ -108,6 +108,8 @@ Applications on the VPS
 
 The upstream provider is Cloudflare: it can see the DNS questions and the VPS source IP. DoH protects the DNS exchange from passive observation between the VPS and Cloudflare; it does not hide queries from Cloudflare itself. If Cloudflare DoH is unreachable, uncached lookups fail rather than leaking to a plaintext resolver.
 
+This changes the VPS system resolver and the explicit DNS paths used by Xray, Caddy, and the optional Cloudflare API helper. It does not transparently intercept an application that hardcodes a public DNS IP and sends UDP/TCP 53 directly; enforcing that would require separate outbound firewall policy. It also does not automatically send DNS from remote VPN clients through this server—client-side DNS routing is a separate Xray/client configuration.
+
 After deployment, verify the chain:
 
 ```bash
